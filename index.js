@@ -15,7 +15,7 @@ const {
 //  VARIÁVEIS DE AMBIENTE
 // =======================
 
-// Essas variáveis você vai configurar na Render
+// Essas variáveis você configura na Render (Environment)
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const OWNER_NUMBER = process.env.OWNER_NUMBER;        // ex: 5521966758401@c.us
@@ -36,28 +36,9 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 // =======================
-//  WHATSAPP CLIENT
+//  SESSÕES / LEADS
 // =======================
 
-// IMPORTANTE: dataPath usa /data, que será um disco persistente na Render
-const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: 'hadassa-rio-02',
-        dataPath: '/data/hadassa_auth2'
-    }),
-    puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox'
-        ]
-    },
-    webVersionCache: {
-        type: 'none'
-    }
-});
-
-// Sessões em memória
 const sessions = {}; // { [numero]: { stage: string, name: string } }
 let leads = [];
 let lastId = 0;
@@ -135,7 +116,7 @@ async function saveLead({ from, name, type, mensagem }) {
         id: lastId,
         whatsapp: from,
         nome: name || '',
-        tipo: type,
+        tipo: type,                          // orcamento | promocao | duvida | atendimento
         mensagem: mensagem || '',
         origem: 'Hadassa Viagens – Unidade Rio',
         status: 'novo',
@@ -178,13 +159,35 @@ async function buscarPacotesPorDestino(destinoTexto) {
 }
 
 // =======================
+//  WHATSAPP CLIENT
+// =======================
+
+// Aqui está o dataPath CORRIGIDO para funcionar na Render
+const client = new Client({
+    authStrategy: new LocalAuth({
+        clientId: 'hadassa-rio-02',
+        dataPath: './hadassa_auth2'   // pasta local no projeto
+    }),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox'
+        ]
+    },
+    webVersionCache: {
+        type: 'none'
+    }
+});
+
+// =======================
 //  EVENTOS BÁSICOS
 // =======================
 
 client.on('qr', qr => {
-    // Em servidor online, é difícil escanear ASCII no log.
-    // Então mostramos um link para gerar o QR como imagem.
-    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qr);
+    // Em servidor online, usamos um link para visualizar o QR
+    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' +
+        encodeURIComponent(qr);
     console.log('📌 Abra este link no navegador do seu computador e escaneie o QR com o WhatsApp:');
     console.log(qrUrl);
 });
@@ -201,6 +204,7 @@ client.on('disconnected', reason => {
     console.log('🔌 Cliente desconectado:', reason);
 });
 
+// Inicializa o cliente
 client.initialize().catch(err => {
     console.error('❌ Erro ao inicializar o cliente:', err);
 });
@@ -412,7 +416,6 @@ client.on('message', async msg => {
             'Se quiser ver outras possibilidades enquanto isso, pode digitar *menu*.'
         );
 
-        // Se PACOTES_API_URL estiver configurada, podemos buscar automatico:
         const pacotes = await buscarPacotesPorDestino(destino);
         if (pacotes && pacotes.length) {
             let texto = `Encontrei algumas opções automáticas para *${destino}* ✈️\n\n`;
